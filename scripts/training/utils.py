@@ -43,8 +43,8 @@ def train(model,
     running_loss = 0.0
     correct_preds = 0
 
-    tqdm_batch_iterator = tqdm(dataloader)
-    for batch_index, batch in enumerate(tqdm_batch_iterator):
+#    tqdm_batch_iterator = tqdm(dataloader)
+    for batch_index, batch in enumerate(dataloader):
         batch_start = time.time()
 
         # Move input and output data to the GPU if it is used.
