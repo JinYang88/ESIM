@@ -107,6 +107,7 @@ def main(train_file,
         embeddings = torch.tensor(pickle.load(pkl), dtype=torch.float)\
                      .to(device)
 
+    print("WTF!!!!")
     model = ESIM(embeddings.shape[0],
                  embeddings.shape[1],
                  hidden_size,
