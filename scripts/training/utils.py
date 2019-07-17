@@ -70,10 +70,10 @@ def train(model,
         running_loss += loss.item()
         correct_preds += correct_predictions(probs, labels)
 
-        description = "Avg. batch proc. time: {:.4f}s, loss: {:.4f}"\
-                      .format(batch_time_avg/(batch_index+1),
-                              running_loss/(batch_index+1))
-        tqdm_batch_iterator.set_description(description)
+#        description = "Avg. batch proc. time: {:.4f}s, loss: {:.4f}"\
+#                      .format(batch_time_avg/(batch_index+1),
+#                              running_loss/(batch_index+1))
+#        tqdm_batch_iterator.set_description(description)
 
     epoch_time = time.time() - epoch_start
     epoch_loss = running_loss / len(dataloader)
