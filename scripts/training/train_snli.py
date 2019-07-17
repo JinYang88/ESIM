@@ -5,6 +5,7 @@ Train the ESIM model on the preprocessed SNLI dataset.
 
 import os
 import sys
+sys.path.append("../../")
 import argparse
 import pickle
 import torch
