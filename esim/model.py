@@ -24,7 +24,11 @@ class ESIM(nn.Module):
                  padding_idx=0,
                  dropout=0.5,
                  num_classes=3,
-                 device="cpu"):
+                 device="cpu",
+                 use_attention=True,
+                 use_first_lstm=True,
+                 use_second_lstm=True,
+                 use_final_tanh=True):
         """
         Args:
             vocab_size: The size of the vocabulary of embeddings in the model.
@@ -51,6 +55,14 @@ class ESIM(nn.Module):
         self.num_classes = num_classes
         self.dropout = dropout
         self.device = device
+        
+        ## add by liujy
+        self.use_attention = use_attention
+        self.use_first_lstm = use_first_lstm
+        self.use_second_lstm = use_second_lstm
+        self.use_final_tanh = use_final_tanh
+        
+        
 
         self._word_embedding = nn.Embedding(self.vocab_size,
                                             self.embedding_dim,
@@ -78,9 +90,10 @@ class ESIM(nn.Module):
                                            bidirectional=True)
 
         self._classification = nn.Sequential(nn.Dropout(p=self.dropout),
-                                             nn.Linear(2*4*self.hidden_size,
+                                             nn.Linear(2*4*self.hidden_size if self.use_second_lstm\
+                                                       else 4*self.hidden_size,
                                                        self.hidden_size),
-                                             nn.Tanh(),
+                                             nn.Tanh() if self.use_final_tanh else nn.ReLU(),
                                              nn.Dropout(p=self.dropout),
                                              nn.Linear(self.hidden_size,
                                                        self.num_classes))
@@ -123,19 +136,31 @@ class ESIM(nn.Module):
             embedded_premises = self._rnn_dropout(embedded_premises)
             embedded_hypotheses = self._rnn_dropout(embedded_hypotheses)
 
-        encoded_premises = self._encoding(embedded_premises,
-                                          premises_lengths)
-        encoded_hypotheses = self._encoding(embedded_hypotheses,
-                                            hypotheses_lengths)
 
-        attended_premises, attended_hypotheses =\
-            self._attention(encoded_premises, premises_mask,
-                            encoded_hypotheses, hypotheses_mask)
+        if self.use_first_lstm:
+            encoded_premises = self._encoding(embedded_premises,
+                                              premises_lengths)
+            encoded_hypotheses = self._encoding(embedded_hypotheses,
+                                                hypotheses_lengths)
+        else:
+            encoded_premises = embedded_premises
+            encoded_hypotheses = embedded_hypotheses
 
+        if self.use_attention:
+            attended_premises, attended_hypotheses =\
+                self._attention(encoded_premises, premises_mask,
+                                encoded_hypotheses, hypotheses_mask)
+                
+        else:
+            attended_premises, attended_hypotheses =\
+                                encoded_premises, encoded_hypotheses
+        
         enhanced_premises = torch.cat([encoded_premises,
                                        attended_premises,
-                                       encoded_premises - attended_premises,
-                                       encoded_premises * attended_premises],
+                                       encoded_premises -
+                                       attended_premises,
+                                       encoded_premises *
+                                       attended_premises],
                                       dim=-1)
         enhanced_hypotheses = torch.cat([encoded_hypotheses,
                                          attended_hypotheses,
@@ -145,6 +170,8 @@ class ESIM(nn.Module):
                                          attended_hypotheses],
                                         dim=-1)
 
+
+        #Is the projection and dropout cricial?
         projected_premises = self._projection(enhanced_premises)
         projected_hypotheses = self._projection(enhanced_hypotheses)
 
@@ -152,9 +179,13 @@ class ESIM(nn.Module):
             projected_premises = self._rnn_dropout(projected_premises)
             projected_hypotheses = self._rnn_dropout(projected_hypotheses)
 
-        v_ai = self._composition(projected_premises, premises_lengths)
-        v_bj = self._composition(projected_hypotheses, hypotheses_lengths)
-
+        if self.use_second_lstm:
+            v_ai = self._composition(projected_premises, premises_lengths)
+            v_bj = self._composition(projected_hypotheses, hypotheses_lengths)
+        else:
+            v_ai = projected_premises
+            v_bj = projected_hypotheses
+            
         v_a_avg = torch.sum(v_ai * premises_mask.unsqueeze(1)
                                                 .transpose(2, 1), dim=1)\
             / torch.sum(premises_mask, dim=1, keepdim=True)

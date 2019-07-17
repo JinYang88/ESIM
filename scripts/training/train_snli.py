@@ -4,19 +4,45 @@ Train the ESIM model on the preprocessed SNLI dataset.
 # Aurelien Coet, 2018.
 
 import os
+import sys
 import argparse
 import pickle
 import torch
 import json
-
+import argparse
 import matplotlib.pyplot as plt
 import torch.nn as nn
+import yaml
 
 from torch.utils.data import DataLoader
 from esim.data import NLIDataset
 from esim.model import ESIM
 from utils import train, validate
 
+
+default_config = "../../config/training/snli_training.json"
+parser = argparse.ArgumentParser(description="Train the ESIM model on SNLI")
+parser.add_argument("--config",
+                    default=default_config,
+                    help="Path to a json configuration file")
+parser.add_argument("--checkpoint",
+                    default=None,
+                    help="Path to a checkpoint file to resume training")
+
+parser.add_argument('-use_attention', type=bool, default=True)
+parser.add_argument('-use_first_lstm', type=bool, default=True) # TO BE FIXED
+parser.add_argument('-use_second_lstm', type=bool, default=True)
+parser.add_argument('-use_final_tanh', type=bool, default=True)
+parser.add_argument('-scheduler', type=bool, default="")
+parser.add_argument('-lr', type=float, default=0.0004)
+
+parser.add_argument('-id', type=str, default=1)
+
+parser.add_argument('-gpu', type=int, default=0)
+args = vars(parser.parse_args())
+
+#print(args["scheduler"], type(args["scheduler"]))
+#sys.exit()
 
 def main(train_file,
          valid_file,
@@ -55,7 +81,7 @@ def main(train_file,
         checkpoint: A checkpoint from which to continue training. If None,
             training starts from scratch. Defaults to None.
     """
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:{}".format(args["gpu"]) if torch.cuda.is_available() else "cpu")
 
     print(20 * "=", " Preparing for training ", 20 * "=")
 
@@ -87,11 +113,15 @@ def main(train_file,
                  embeddings=embeddings,
                  dropout=dropout,
                  num_classes=num_classes,
-                 device=device).to(device)
+                 device=device,
+                 use_attention=args["use_attention"],
+                 use_first_lstm=args["use_first_lstm"],
+                 use_second_lstm=args["use_second_lstm"],
+                 use_final_tanh=args["use_final_tanh"]).to(device)
 
     # -------------------- Preparation for training  ------------------- #
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args["lr"])
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
                                                            mode="max",
                                                            factor=0.5,
@@ -159,7 +189,8 @@ def main(train_file,
               .format(epoch_time, epoch_loss, (epoch_accuracy*100)))
 
         # Update the optimizer's learning rate with the scheduler.
-        scheduler.step(epoch_accuracy)
+        if args["scheduler"]:
+            scheduler.step(epoch_accuracy)
 
         # Early stopping on validation accuracy.
         if epoch_accuracy < best_score:
@@ -193,35 +224,31 @@ def main(train_file,
             print("-> Early stopping: patience limit reached, stopping...")
             break
 
+    info_dict = {}
+    info_dict["params"] = args
+    info_dict["valid-acc"] = epoch_accuracy
+    with open(str(args["id"]) + "_info.yaml", "w") as fw:
+        yaml.dump(info_dict, fw, default_flow_style=None, indent=4)
+    
+    
     # Plotting of the loss curves for the train and validation sets.
-    plt.figure()
-    plt.plot(epochs_count, train_losses, "-r")
-    plt.plot(epochs_count, valid_losses, "-b")
-    plt.xlabel("epoch")
-    plt.ylabel("loss")
-    plt.legend(["Training loss", "Validation loss"])
-    plt.title("Cross entropy loss")
-    plt.show()
+#    plt.figure()
+#    plt.plot(epochs_count, train_losses, "-r")
+#    plt.plot(epochs_count, valid_losses, "-b")
+#    plt.xlabel("epoch")
+#    plt.ylabel("loss")
+#    plt.legend(["Training loss", "Validation loss"])
+#    plt.title("Cross entropy loss")
+#    plt.show()
 
 
 if __name__ == "__main__":
-    default_config = "../../config/training/snli_training.json"
-
-    parser = argparse.ArgumentParser(description="Train the ESIM model on SNLI")
-    parser.add_argument("--config",
-                        default=default_config,
-                        help="Path to a json configuration file")
-    parser.add_argument("--checkpoint",
-                        default=None,
-                        help="Path to a checkpoint file to resume training")
-    args = parser.parse_args()
-
     script_dir = os.path.dirname(os.path.realpath(__file__))
 
-    if args.config == default_config:
-        config_path = os.path.join(script_dir, args.config)
+    if args["config"] == default_config:
+        config_path = os.path.join(script_dir, args["config"])
     else:
-        config_path = args.config
+        config_path = args["config"]
 
     with open(os.path.normpath(config_path), 'r') as config_file:
         config = json.load(config_file)
@@ -238,4 +265,4 @@ if __name__ == "__main__":
          config["lr"],
          config["patience"],
          config["max_gradient_norm"],
-         args.checkpoint)
+         args["checkpoint"])
