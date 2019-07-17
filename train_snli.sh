@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=1
+#SBATCH --gres=gpu:2
+#SBATCH --cpus-per-task=2
 #SBATCH -p gpu_24h
 
 cd scripts/training/
