@@ -34,7 +34,7 @@ parser.add_argument('-use_attention', type=bool, default=True)
 parser.add_argument('-use_first_lstm', type=bool, default=True) # TO BE FIXED
 parser.add_argument('-use_second_lstm', type=bool, default=True)
 parser.add_argument('-use_final_tanh', type=bool, default=True)
-parser.add_argument('-scheduler', type=bool, default=True)
+parser.add_argument('-scheduler', type=bool, default="")
 parser.add_argument('-lr', type=float, default=0.0004)
 
 parser.add_argument('-id', type=str, default=1)
